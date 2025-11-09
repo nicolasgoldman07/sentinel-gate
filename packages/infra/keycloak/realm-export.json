@@ -1,0 +1,116 @@
+{
+    "realm": "sentinel",
+    "enabled": true,
+    "sslRequired": "none",
+    "registrationAllowed": false,
+    "loginWithEmailAllowed": true,
+    "duplicateEmailsAllowed": false,
+    "resetPasswordAllowed": false,
+    "editUsernameAllowed": false,
+    "bruteForceProtected": true,
+    "accessTokenLifespan": 300,
+    "accessTokenLifespanForImplicitFlow": 900,
+    "ssoSessionIdleTimeout": 1800,
+    "ssoSessionMaxLifespan": 36000,
+    "offlineSessionIdleTimeout": 2592000,
+    "clients": [
+        {
+            "clientId": "sentinel-api",
+            "enabled": true,
+            "publicClient": true,
+            "serviceAccountsEnabled": false,
+            "standardFlowEnabled": true,
+            "implicitFlowEnabled": false,
+            "directAccessGrantsEnabled": true,
+            "protocol": "openid-connect",
+            "bearerOnly": false,
+            "consentRequired": false,
+            "fullScopeAllowed": true,
+            "redirectUris": [
+                "http://localhost:3000/*"
+            ],
+            "webOrigins": [
+                "http://localhost:3000"
+            ],
+            "attributes": {
+                "access.token.lifespan": "300"
+            }
+        }
+    ],
+    "roles": {
+        "realm": [
+            {
+                "name": "admin",
+                "description": "Administrator role"
+            },
+            {
+                "name": "user",
+                "description": "Standard user role"
+            },
+            {
+                "name": "ua",
+                "description": "UA role for specific permissions"
+            },
+            {
+                "name": "operaciones",
+                "description": "Operations role"
+            },
+            {
+                "name": "finance",
+                "description": "Finance role for budget approvals"
+            }
+        ]
+    },
+    "users": [
+        {
+            "username": "admin",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "admin@sentinel.local",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "admin123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "admin"
+            ],
+            "attributes": {
+                "uaIds": [
+                    "ua-001"
+                ],
+                "ucIds": [
+                    "uc-001"
+                ]
+            }
+        },
+        {
+            "username": "testuser",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "user@sentinel.local",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "user123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "user",
+                "ua"
+            ],
+            "attributes": {
+                "uaIds": [
+                    "ua-002",
+                    "ua-003"
+                ],
+                "ucIds": [
+                    "uc-002"
+                ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,319 @@
+[
+    {
+        "id": "unlp-001",
+        "description": "UA members can edit padron in OPEN stage",
+        "actions": [
+            "padron:edit"
+        ],
+        "rbac": {
+            "anyRole": [
+                "ua",
+                "operaciones"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "unlp"
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "resource.status"
+                        },
+                        "OPEN"
+                    ]
+                },
+                {
+                    "in": [
+                        {
+                            "var": "resource.uaId"
+                        },
+                        {
+                            "var": "subject.uaIds"
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "unlp-002",
+        "description": "Fiscales can view mesas assigned to their UA",
+        "actions": [
+            "mesa:view"
+        ],
+        "rbac": {
+            "anyRole": [
+                "fiscal"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "unlp"
+                    ]
+                },
+                {
+                    "in": [
+                        {
+                            "var": "resource.uaId"
+                        },
+                        {
+                            "var": "subject.uaIds"
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "unlp-003",
+        "description": "Resultados visibles solo en PUBLISHED",
+        "actions": [
+            "resultado:view"
+        ],
+        "rbac": {
+            "anyRole": [
+                "ua",
+                "operaciones",
+                "fiscal",
+                "candidato"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "unlp"
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "resource.status"
+                        },
+                        "PUBLISHED"
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "unlp-900",
+        "description": "Admins UNLP pueden todo en la app UNLP",
+        "actions": [
+            "*"
+        ],
+        "rbac": {
+            "anyRole": [
+                "admin"
+            ]
+        },
+        "abac": {
+            "==": [
+                {
+                    "var": "context.app"
+                },
+                "unlp"
+            ]
+        }
+    },
+    {
+        "id": "hoops-001",
+        "description": "Players can book courts in their tenant if eligible",
+        "actions": [
+            "court:book"
+        ],
+        "rbac": {
+            "anyRole": [
+                "player"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "hoops"
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "resource.tenantId"
+                        },
+                        {
+                            "var": "subject.tenantId"
+                        }
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "context.isEligibleToBook"
+                        },
+                        true
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "hoops-002",
+        "description": "Players can cancel own booking if canCancel is true",
+        "actions": [
+            "booking:cancel"
+        ],
+        "rbac": {
+            "anyRole": [
+                "player"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "hoops"
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "resource.playerId"
+                        },
+                        {
+                            "var": "subject.sub"
+                        }
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "context.canCancel"
+                        },
+                        true
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "hoops-003",
+        "description": "Club admins manage bookings of their club",
+        "actions": [
+            "booking:cancel",
+            "booking:update",
+            "club:manage"
+        ],
+        "rbac": {
+            "anyRole": [
+                "club_admin"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "hoops"
+                    ]
+                },
+                {
+                    "in": [
+                        {
+                            "var": "resource.clubId"
+                        },
+                        {
+                            "var": "subject.clubIds"
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "hoops-004",
+        "description": "Players can join matches of their tenant",
+        "actions": [
+            "match:join"
+        ],
+        "rbac": {
+            "anyRole": [
+                "player"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "==": [
+                        {
+                            "var": "context.app"
+                        },
+                        "hoops"
+                    ]
+                },
+                {
+                    "==": [
+                        {
+                            "var": "resource.tenantId"
+                        },
+                        {
+                            "var": "subject.tenantId"
+                        }
+                    ]
+                },
+                {
+                    "in": [
+                        {
+                            "var": "resource.visibility"
+                        },
+                        [
+                            "PUBLIC",
+                            "CLUB_ONLY"
+                        ]
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "hoops-900",
+        "description": "Hoops admins can do anything in hoops",
+        "actions": [
+            "*"
+        ],
+        "rbac": {
+            "anyRole": [
+                "admin"
+            ]
+        },
+        "abac": {
+            "==": [
+                {
+                    "var": "context.app"
+                },
+                "hoops"
+            ]
+        }
+    }
+]

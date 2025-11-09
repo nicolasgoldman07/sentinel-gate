@@ -1,33 +1,22 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { signToken } from "../utils/jwt.js";
-import { verifyTokenMiddleware } from "../middleware/verifyToken.js";
-
-interface LoginBody { username: string; password: string; }
+import { keycloakAuthMiddleware } from "../middleware/keycloakAuth.js";
+import { keycloakConfig } from "../config/keycloak.js";
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-    app.post(
-        "/auth/login",
-        async (req: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
-            const { username, password } = req.body;
+    // Health check for Keycloak integration
+    app.get("/auth/info", async (_, reply: FastifyReply) => {
+        reply.send({
+            keycloakUrl: keycloakConfig.serverUrl,
+            realm: keycloakConfig.realm,
+            tokenEndpoint: `${keycloakConfig.serverUrl}/realms/${keycloakConfig.realm}/protocol/openid-connect/token`,
+            authEndpoint: `${keycloakConfig.serverUrl}/realms/${keycloakConfig.realm}/protocol/openid-connect/auth`,
+        });
+    });
 
-            if (!username || !password) {
-                reply.status(400).send({ error: "Missing credentials" });
-                return;
-            }
-
-            const payload = {
-                sub: username,
-                role: username === "admin" ? "admin" : "user",
-            };
-
-            const token = signToken(payload);
-            reply.send({ token });
-        }
-    );
-
+    // Verify token endpoint (protected by Keycloak middleware)
     app.get(
         "/auth/verify",
-        { preHandler: verifyTokenMiddleware },
+        { preHandler: keycloakAuthMiddleware },
         async (req: FastifyRequest, reply: FastifyReply) => {
             reply.send({ valid: true, user: (req as any).user });
         }

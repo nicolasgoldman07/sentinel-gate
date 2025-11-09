@@ -1,0 +1,15 @@
+{
+    "name": "infra",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Infrastructure configuration for Sentinel (Keycloak, databases, etc.)",
+    "scripts": {
+        "keycloak:start": "docker compose up -d",
+        "keycloak:stop": "docker compose down",
+        "keycloak:logs": "docker compose logs -f keycloak",
+        "keycloak:clean": "docker compose down -v"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC"
+}

@@ -7,6 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "turbo run dev --parallel",
+    "dev:all": "npm run keycloak:start && npm run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "start": "npm --workspace=sentinel run start",
@@ -15,7 +16,11 @@
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "clean": "rm -rf node_modules package-lock.json pnpm-lock.yaml yarn.lock .turbo .turbo-build-state && rm -rf packages/*/node_modules packages/*/dist && echo 'clean: removed node_modules, locks, .turbo and package dist folders'",
     "clean:install": "npm run clean && npm install",
-    "clean:all": "rm -rf node_modules package-lock.json pnpm-lock.yaml yarn.lock .turbo .turbo-build-state && rm -rf packages/*/node_modules packages/*/dist && echo 'clean:all finished'"
+    "clean:all": "rm -rf node_modules package-lock.json pnpm-lock.yaml yarn.lock .turbo .turbo-build-state && rm -rf packages/*/node_modules packages/*/dist && echo 'clean:all finished'",
+    "keycloak:start": "npm --workspace=infra run keycloak:start",
+    "keycloak:stop": "npm --workspace=infra run keycloak:stop",
+    "keycloak:logs": "npm --workspace=infra run keycloak:logs",
+    "keycloak:clean": "npm --workspace=infra run keycloak:clean"
   },
   "workspaces": [
     "packages/*"

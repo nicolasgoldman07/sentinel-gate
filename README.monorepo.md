@@ -21,6 +21,7 @@ This repository is prepared as a monorepo using npm workspaces and Turborepo. Th
 
 - Node.js >= 18
 - npm (we use npm workspaces in this repo)
+- Docker & Docker Compose (for running Keycloak locally)
 
 ## Main commands (run from repo root)
 
@@ -30,10 +31,34 @@ This repository is prepared as a monorepo using npm workspaces and Turborepo. Th
 npm run bootstrap
 ```
 
+- Start Keycloak (required for authentication)
+
+```bash
+npm run keycloak:start
+```
+
 - Start development (runs `dev` in workspaces in parallel via Turborepo)
 
 ```bash
 npm run dev
+```
+
+- Start everything (Keycloak + dev)
+
+```bash
+npm run dev:all
+```
+
+- Stop Keycloak
+
+```bash
+npm run keycloak:stop
+```
+
+- View Keycloak logs
+
+```bash
+npm run keycloak:logs
 ```
 
 - Build all packages (uses Turborepo caching)
@@ -52,6 +77,115 @@ npm run typecheck
 
 ```bash
 npm run turbo:run -- <task>
+```
+
+## Authentication with Keycloak
+
+Sentinel uses Keycloak for authentication and authorization. All protected endpoints require a valid JWT token issued by Keycloak.
+
+### Quick start (local development)
+
+1. Start Keycloak:
+
+```bash
+npm run keycloak:start
+```
+
+2. Wait ~30 seconds for Keycloak to be ready, then access the admin console:
+
+   - URL: http://localhost:8080
+   - Admin credentials: `admin` / `admin`
+
+3. The `sentinel` realm is auto-imported with:
+
+   - Client: `sentinel-api`
+   - Users: `admin` (password: `admin123`), `testuser` (password: `user123`)
+   - Roles: `admin`, `user`, `ua`, `operaciones`, `finance`
+
+4. Get a token using the Direct Access Grant flow (Resource Owner Password Credentials):
+
+```bash
+curl -X POST http://localhost:8080/realms/sentinel/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=sentinel-api" \
+  -d "username=admin" \
+  -d "password=admin123"
+```
+
+Response:
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI...",
+  "expires_in": 300,
+  "refresh_expires_in": 1800,
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI...",
+  "token_type": "Bearer"
+}
+```
+
+5. Use the `access_token` in requests to Sentinel:
+
+```bash
+export TOKEN="<your_access_token>"
+
+# Health check
+curl http://localhost:3000/health
+
+# Auth info (no token required)
+curl http://localhost:3000/auth/info
+
+# Verify token (requires auth)
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3000/auth/verify
+
+# Make a policy decision (requires auth)
+curl -X POST http://localhost:3000/decision \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": { "sub": "admin", "roles": ["admin"] },
+    "action": "padron:edit",
+    "resource": { "type": "padron", "status": "OPEN" }
+  }'
+```
+
+### Environment variables
+
+Copy `.env.example` to `.env` and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+- `KEYCLOAK_SERVER_URL` — Keycloak server URL (default: `http://localhost:8080`)
+- `KEYCLOAK_REALM` — Keycloak realm name (default: `sentinel`)
+- `KEYCLOAK_CLIENT_ID` — Client ID for Sentinel API (default: `sentinel-api`)
+
+### Token validation flow
+
+1. Client obtains a token from Keycloak (via login or password grant).
+2. Client sends requests to Sentinel with `Authorization: Bearer <token>`.
+3. Sentinel validates the token:
+   - Fetches Keycloak's public keys (JWKS endpoint).
+   - Verifies the token signature, issuer, audience, and expiration.
+   - Extracts user claims (sub, roles, custom attributes).
+4. If valid, the request proceeds; otherwise, returns 401 Unauthorized.
+
+### Managing users and roles
+
+- Access Keycloak admin console: http://localhost:8080
+- Navigate to the `sentinel` realm → Users or Roles.
+- Add/edit users and assign roles as needed.
+- Export the realm configuration for version control:
+
+```bash
+docker exec -it sentinel-keycloak /opt/keycloak/bin/kc.sh export \
+  --dir /tmp --realm sentinel
+docker cp sentinel-keycloak:/tmp/sentinel-realm.json packages/infra/keycloak/realm-export.json
 ```
 
 ## How the `sentinel` package works
