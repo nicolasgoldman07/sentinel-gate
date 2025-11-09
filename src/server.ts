@@ -3,11 +3,13 @@ import { env } from "./config/env.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
 import { decisionRoutes } from "./routes/decision.js";
+import { policyRoutes } from "./routes/policies.ts";
 
 const app = Fastify({ logger: true });
 app.register(healthRoutes);
 app.register(authRoutes);
 app.register(decisionRoutes);
+app.register(policyRoutes);
 
 const start = async () => {
   try {

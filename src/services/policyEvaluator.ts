@@ -1,27 +1,7 @@
 import { Policy, DecisionRequest, DecisionResponse } from "../types/policy.js";
 import { get } from "lodash-es";
 import { logger } from "../utils/logger.js";
-
-const policies: Policy[] = [
-    {
-        id: "policy-001",
-        description: "UA members can edit padron in OPEN stage",
-        actions: ["padron:edit"],
-        rbac: { anyRole: ["ua", "operaciones"] },
-        abac: {
-            all: [
-                { eq: ["${resource.status}", "OPEN"] },
-                { includes: ["${subject.uaIds}", "${resource.uaId}"] },
-            ],
-        },
-    },
-    {
-        id: "policy-002",
-        description: "Admins can do anything",
-        actions: ["*"],
-        rbac: { anyRole: ["admin"] },
-    },
-];
+import { loadPolicies } from "./policyStore.js";
 
 function resolvePath(path: string, ctx: any): any {
     if (!path.startsWith("${")) return path;
@@ -49,7 +29,8 @@ function evaluateCondition(cond: any, ctx: any): boolean {
     return false;
 }
 
-export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
+export async function evaluatePolicies(req: DecisionRequest): Promise<DecisionResponse> {
+    const policies: Policy[] = await loadPolicies();
     const ctx = req;
     const timestamp = new Date().toISOString();
 
@@ -58,7 +39,6 @@ export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
             policy.actions.includes("*") || policy.actions.includes(req.action);
         if (!matchAction) continue;
 
-        // RBAC check
         if (policy.rbac?.anyRole) {
             const hasRole = policy.rbac.anyRole.some((r) =>
                 req.subject.roles.includes(r)
@@ -66,7 +46,6 @@ export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
             if (!hasRole) continue;
         }
 
-        // ABAC check
         if (policy.abac?.all) {
             const allMatch = policy.abac.all.every((c) => evaluateCondition(c, ctx));
             if (!allMatch) continue;
@@ -75,12 +54,6 @@ export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
             const anyMatch = policy.abac.any.some((c) => evaluateCondition(c, ctx));
             if (!anyMatch) continue;
         }
-
-        const decision: DecisionResponse = {
-            allow: true,
-            reason: `Matched ${policy.description}`,
-            matchedPolicyId: policy.id,
-        };
 
         logger.info({
             event: "authorization.decision",
@@ -93,7 +66,11 @@ export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
             reason: policy.description,
         });
 
-        return decision;
+        return {
+            allow: true,
+            reason: `Matched ${policy.description}`,
+            matchedPolicyId: policy.id,
+        };
     }
 
     logger.warn({
