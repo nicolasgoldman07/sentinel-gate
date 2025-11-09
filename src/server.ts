@@ -2,10 +2,12 @@ import Fastify from "fastify";
 import { env } from "./config/env.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
+import { decisionRoutes } from "./routes/decision.js";
 
 const app = Fastify({ logger: true });
 app.register(healthRoutes);
 app.register(authRoutes);
+app.register(decisionRoutes);
 
 const start = async () => {
   try {
@@ -16,5 +18,4 @@ const start = async () => {
     process.exit(1);
   }
 };
-
 start();
