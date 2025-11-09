@@ -1,5 +1,6 @@
 import { Policy, DecisionRequest, DecisionResponse } from "../types/policy.js";
-import { get } from "lodash-es"; // lightweight alternative (no need for full lodash)
+import { get } from "lodash-es";
+import { logger } from "../utils/logger.js";
 
 const policies: Policy[] = [
     {
@@ -10,16 +11,16 @@ const policies: Policy[] = [
         abac: {
             all: [
                 { eq: ["${resource.status}", "OPEN"] },
-                { includes: ["${subject.uaIds}", "${resource.uaId}"] }
-            ]
-        }
+                { includes: ["${subject.uaIds}", "${resource.uaId}"] },
+            ],
+        },
     },
     {
         id: "policy-002",
         description: "Admins can do anything",
         actions: ["*"],
-        rbac: { anyRole: ["admin"] }
-    }
+        rbac: { anyRole: ["admin"] },
+    },
 ];
 
 function resolvePath(path: string, ctx: any): any {
@@ -39,19 +40,18 @@ function evaluateCondition(cond: any, ctx: any): boolean {
     }
     if (cond.includes) {
         const [arr, val] = cond.includes.map((v: string) => resolvePath(v, ctx));
-        if (Array.isArray(arr)) return arr.includes(val);
-        return false;
+        return Array.isArray(arr) ? arr.includes(val) : false;
     }
     if (cond.in) {
         const [val, arr] = cond.in.map((v: string) => resolvePath(v, ctx));
-        if (Array.isArray(arr)) return arr.includes(val);
-        return false;
+        return Array.isArray(arr) ? arr.includes(val) : false;
     }
     return false;
 }
 
 export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
     const ctx = req;
+    const timestamp = new Date().toISOString();
 
     for (const policy of policies) {
         const matchAction =
@@ -76,12 +76,35 @@ export function evaluatePolicies(req: DecisionRequest): DecisionResponse {
             if (!anyMatch) continue;
         }
 
-        return {
+        const decision: DecisionResponse = {
             allow: true,
             reason: `Matched ${policy.description}`,
-            matchedPolicyId: policy.id
+            matchedPolicyId: policy.id,
         };
+
+        logger.info({
+            event: "authorization.decision",
+            timestamp,
+            user: req.subject.sub,
+            action: req.action,
+            resourceType: req.resource.type,
+            allow: true,
+            policyId: policy.id,
+            reason: policy.description,
+        });
+
+        return decision;
     }
+
+    logger.warn({
+        event: "authorization.decision",
+        timestamp,
+        user: req.subject.sub,
+        action: req.action,
+        resourceType: req.resource.type,
+        allow: false,
+        reason: "No matching policy",
+    });
 
     return { allow: false, reason: "No matching policy" };
 }
