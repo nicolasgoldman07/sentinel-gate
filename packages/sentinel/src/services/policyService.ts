@@ -1,6 +1,6 @@
 
-import { FilePolicyRepository } from "../repositories/policy/FilePolicyRepository.ts";
-import { PolicyRepository } from "../repositories/policy/PolicyRepository.ts";
+import { FilePolicyRepository } from "../repositories/policy/FilePolicyRepository.js";
+import { PolicyRepository } from "../repositories/policy/PolicyRepository.js";
 import { Policy } from "../types/policy.js";
 
 let repository: PolicyRepository = new FilePolicyRepository();

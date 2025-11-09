@@ -7,8 +7,8 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { PolicyRepository } from "./PolicyRepository.js";
-import { Policy } from "../../types/policy.ts";
-import { logger } from "../../utils/logger.ts";
+import { Policy } from "../../types/policy.js";
+import { logger } from "../../utils/logger.js";
 
 export class DynamoPolicyRepository implements PolicyRepository {
     private client: DynamoDBClient;

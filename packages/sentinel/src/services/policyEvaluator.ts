@@ -1,7 +1,7 @@
 import jsonLogic from "json-logic-js";
-import { getAllPolicies } from "./policyService.ts";
-import { DecisionRequest, DecisionResponse } from "../types/policy.ts";
-import { logger } from "../utils/logger.ts";
+import { getAllPolicies } from "./policyService.js";
+import { DecisionRequest, DecisionResponse } from "../types/policy.js";
+import { logger } from "../utils/logger.js";
 
 jsonLogic.add_operation("in", (val: any, arr: any[]) => Array.isArray(arr) && arr.includes(val));
 jsonLogic.add_operation("includes", (arr: any[], val: any) => Array.isArray(arr) && arr.includes(val));

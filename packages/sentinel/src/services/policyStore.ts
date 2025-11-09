@@ -1,8 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { logger } from "../utils/logger.ts";
-import { Policy } from "../types/policy.ts";
+import { logger } from "../utils/logger.js";
+import { Policy } from "../types/policy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, "../data/policies.json");
