@@ -41,23 +41,15 @@
         "realm": [
             {
                 "name": "admin",
-                "description": "Administrator role"
+                "description": "Administrator role with full access"
             },
             {
                 "name": "user",
                 "description": "Standard user role"
             },
             {
-                "name": "ua",
-                "description": "UA role for specific permissions"
-            },
-            {
-                "name": "operaciones",
-                "description": "Operations role"
-            },
-            {
-                "name": "finance",
-                "description": "Finance role for budget approvals"
+                "name": "manager",
+                "description": "Manager role with department-level permissions"
             }
         ]
     },
@@ -78,11 +70,8 @@
                 "admin"
             ],
             "attributes": {
-                "uaIds": [
-                    "ua-001"
-                ],
-                "ucIds": [
-                    "uc-001"
+                "departmentIds": [
+                    "dept-1"
                 ]
             }
         },
@@ -99,16 +88,32 @@
                 }
             ],
             "realmRoles": [
-                "user",
-                "ua"
+                "user"
             ],
             "attributes": {
-                "uaIds": [
-                    "ua-002",
-                    "ua-003"
-                ],
-                "ucIds": [
-                    "uc-002"
+                "departmentIds": [
+                    "dept-1"
+                ]
+            }
+        },
+        {
+            "username": "manager",
+            "enabled": true,
+            "emailVerified": true,
+            "email": "manager@sentinel.local",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "manager123",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "manager"
+            ],
+            "attributes": {
+                "departmentIds": [
+                    "dept-1"
                 ]
             }
         }
