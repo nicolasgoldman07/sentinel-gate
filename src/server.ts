@@ -1,6 +1,6 @@
 import Fastify from "fastify";
-import { env } from "./config/env.ts";
-import { healthRoutes } from "./routes/health.ts";
+import { env } from "./config/env.js";
+import { healthRoutes } from "./routes/health.js";
 
 const app = Fastify({ logger: true });
 app.register(healthRoutes);
