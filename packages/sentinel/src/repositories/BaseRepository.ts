@@ -1,8 +1,3 @@
-/**
- * BaseRepository<T>
- * Contrato genérico para repositorios.
- * Permite intercambiar backend (file, SQL, NoSQL, etc.) sin tocar la lógica.
- */
 export interface BaseRepository<T> {
     getAll(): Promise<T[]>;
     getById(id: string): Promise<T | null>;

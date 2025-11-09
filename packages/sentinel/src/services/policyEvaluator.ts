@@ -3,7 +3,6 @@ import { getAllPolicies } from "./policyService.ts";
 import { DecisionRequest, DecisionResponse } from "../types/policy.ts";
 import { logger } from "../utils/logger.ts";
 
-// Operadores custom
 jsonLogic.add_operation("in", (val: any, arr: any[]) => Array.isArray(arr) && arr.includes(val));
 jsonLogic.add_operation("includes", (arr: any[], val: any) => Array.isArray(arr) && arr.includes(val));
 
@@ -12,21 +11,18 @@ export async function evaluatePolicies(req: DecisionRequest): Promise<DecisionRe
     const ctx = req;
     const timestamp = new Date().toISOString();
 
-    // Debug opcional
     logger.info({ event: "debug.policies", count: policies.length, actions: policies.map(p => p.actions) });
 
     for (const policy of policies) {
         const matchAction = policy.actions.includes("*") || policy.actions.includes(req.action);
         if (!matchAction) continue;
 
-        // RBAC
         if (policy.rbac?.anyRole) {
             const hasRole = policy.rbac.anyRole.some((r) => req.subject.roles.includes(r));
             if (!hasRole) continue;
         }
 
-        // JSON Logic obligatoria
-        if (policy.logic && !jsonLogic.apply(policy.logic, ctx)) continue;
+        if (policy.abac && !jsonLogic.apply(policy.abac, ctx)) continue;
 
         logger.info({
             event: "authorization.decision",

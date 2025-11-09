@@ -4,13 +4,11 @@ import { Policy } from "../types/policy.js";
 import { verifyTokenMiddleware } from "../middleware/verifyToken.js";
 
 export async function policyRoutes(app: FastifyInstance): Promise<void> {
-    // List all
     app.get("/policies", { preHandler: verifyTokenMiddleware }, async (_, reply) => {
         const policies = await loadPolicies();
         reply.send(policies);
     });
 
-    // Get one
     app.get<{ Params: { id: string } }>(
         "/policies/:id",
         { preHandler: verifyTokenMiddleware },
@@ -22,7 +20,6 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         }
     );
 
-    // Create
     app.post<{ Body: Policy }>(
         "/policies",
         { preHandler: verifyTokenMiddleware },
@@ -37,7 +34,6 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         }
     );
 
-    // Update
     app.put<{ Params: { id: string }; Body: Policy }>(
         "/policies/:id",
         { preHandler: verifyTokenMiddleware },
@@ -51,7 +47,6 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         }
     );
 
-    // Delete
     app.delete<{ Params: { id: string } }>(
         "/policies/:id",
         { preHandler: verifyTokenMiddleware },
