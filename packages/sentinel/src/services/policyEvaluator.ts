@@ -1,59 +1,32 @@
-import { Policy, DecisionRequest, DecisionResponse } from "../types/policy.js";
-import { get } from "lodash-es";
-import { logger } from "../utils/logger.js";
-import { loadPolicies } from "./policyStore.js";
+import jsonLogic from "json-logic-js";
+import { getAllPolicies } from "./policyService.ts";
+import { DecisionRequest, DecisionResponse } from "../types/policy.ts";
+import { logger } from "../utils/logger.ts";
 
-function resolvePath(path: string, ctx: any): any {
-    if (!path.startsWith("${")) return path;
-    const clean = path.slice(2, -1);
-    return get(ctx, clean);
-}
-
-function evaluateCondition(cond: any, ctx: any): boolean {
-    if (cond.eq) {
-        const [a, b] = cond.eq.map((v: string) => resolvePath(v, ctx));
-        return a === b;
-    }
-    if (cond.ne) {
-        const [a, b] = cond.ne.map((v: string) => resolvePath(v, ctx));
-        return a !== b;
-    }
-    if (cond.includes) {
-        const [arr, val] = cond.includes.map((v: string) => resolvePath(v, ctx));
-        return Array.isArray(arr) ? arr.includes(val) : false;
-    }
-    if (cond.in) {
-        const [val, arr] = cond.in.map((v: string) => resolvePath(v, ctx));
-        return Array.isArray(arr) ? arr.includes(val) : false;
-    }
-    return false;
-}
+// Operadores custom
+jsonLogic.add_operation("in", (val: any, arr: any[]) => Array.isArray(arr) && arr.includes(val));
+jsonLogic.add_operation("includes", (arr: any[], val: any) => Array.isArray(arr) && arr.includes(val));
 
 export async function evaluatePolicies(req: DecisionRequest): Promise<DecisionResponse> {
-    const policies: Policy[] = await loadPolicies();
+    const policies = await getAllPolicies();
     const ctx = req;
     const timestamp = new Date().toISOString();
 
+    // Debug opcional
+    logger.info({ event: "debug.policies", count: policies.length, actions: policies.map(p => p.actions) });
+
     for (const policy of policies) {
-        const matchAction =
-            policy.actions.includes("*") || policy.actions.includes(req.action);
+        const matchAction = policy.actions.includes("*") || policy.actions.includes(req.action);
         if (!matchAction) continue;
 
+        // RBAC
         if (policy.rbac?.anyRole) {
-            const hasRole = policy.rbac.anyRole.some((r) =>
-                req.subject.roles.includes(r)
-            );
+            const hasRole = policy.rbac.anyRole.some((r) => req.subject.roles.includes(r));
             if (!hasRole) continue;
         }
 
-        if (policy.abac?.all) {
-            const allMatch = policy.abac.all.every((c) => evaluateCondition(c, ctx));
-            if (!allMatch) continue;
-        }
-        if (policy.abac?.any) {
-            const anyMatch = policy.abac.any.some((c) => evaluateCondition(c, ctx));
-            if (!anyMatch) continue;
-        }
+        // JSON Logic obligatoria
+        if (policy.logic && !jsonLogic.apply(policy.logic, ctx)) continue;
 
         logger.info({
             event: "authorization.decision",
@@ -66,11 +39,7 @@ export async function evaluatePolicies(req: DecisionRequest): Promise<DecisionRe
             reason: policy.description,
         });
 
-        return {
-            allow: true,
-            reason: `Matched ${policy.description}`,
-            matchedPolicyId: policy.id,
-        };
+        return { allow: true, reason: `Matched ${policy.description}`, matchedPolicyId: policy.id };
     }
 
     logger.warn({

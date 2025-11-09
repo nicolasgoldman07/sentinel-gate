@@ -35,12 +35,13 @@ export interface Policy {
     id: string;
     description: string;
     actions: string[];
-    rbac?: { anyRole?: string[] };
-    abac?: {
-        all?: Condition[];
-        any?: Condition[];
+    rbac?: {
+        anyRole?: string[];
+        allRoles?: string[];
     };
+    logic?: Record<string, any>;
 }
+
 
 export type Condition =
     | { eq: [string, string] }
