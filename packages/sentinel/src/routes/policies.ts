@@ -1,11 +1,17 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { loadPolicies, savePolicies } from "../services/policyStore.js";
+import {
+    getAllPolicies,
+    getPolicyById,
+    createPolicy,
+    updatePolicy,
+    deletePolicy,
+} from "../services/policyService.js";
 import { Policy } from "../types/policy.js";
 import { keycloakAuthMiddleware } from "../middleware/keycloakAuth.js";
 
 export async function policyRoutes(app: FastifyInstance): Promise<void> {
     app.get("/policies", { preHandler: keycloakAuthMiddleware }, async (_, reply) => {
-        const policies = await loadPolicies();
+        const policies = await getAllPolicies();
         reply.send(policies);
     });
 
@@ -13,8 +19,7 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         "/policies/:id",
         { preHandler: keycloakAuthMiddleware },
         async (req, reply) => {
-            const policies = await loadPolicies();
-            const policy = policies.find((p) => p.id === req.params.id);
+            const policy = await getPolicyById(req.params.id);
             if (!policy) return reply.status(404).send({ error: "Policy not found" });
             reply.send(policy);
         }
@@ -24,12 +29,11 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         "/policies",
         { preHandler: keycloakAuthMiddleware },
         async (req, reply) => {
-            const policies = await loadPolicies();
-            if (policies.some((p) => p.id === req.body.id)) {
+            const existingPolicy = await getPolicyById(req.body.id);
+            if (existingPolicy) {
                 return reply.status(400).send({ error: "Policy already exists" });
             }
-            policies.push(req.body);
-            await savePolicies(policies);
+            await createPolicy(req.body);
             reply.status(201).send(req.body);
         }
     );
@@ -38,11 +42,11 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         "/policies/:id",
         { preHandler: keycloakAuthMiddleware },
         async (req, reply) => {
-            const policies = await loadPolicies();
-            const index = policies.findIndex((p) => p.id === req.params.id);
-            if (index === -1) return reply.status(404).send({ error: "Policy not found" });
-            policies[index] = req.body;
-            await savePolicies(policies);
+            const existingPolicy = await getPolicyById(req.params.id);
+            if (!existingPolicy) {
+                return reply.status(404).send({ error: "Policy not found" });
+            }
+            await updatePolicy({ ...req.body, id: req.params.id });
             reply.send(req.body);
         }
     );
@@ -51,13 +55,11 @@ export async function policyRoutes(app: FastifyInstance): Promise<void> {
         "/policies/:id",
         { preHandler: keycloakAuthMiddleware },
         async (req, reply) => {
-            let policies = await loadPolicies();
-            const before = policies.length;
-            policies = policies.filter((p) => p.id !== req.params.id);
-            if (policies.length === before) {
+            const existingPolicy = await getPolicyById(req.params.id);
+            if (!existingPolicy) {
                 return reply.status(404).send({ error: "Policy not found" });
             }
-            await savePolicies(policies);
+            await deletePolicy(req.params.id);
             reply.status(204).send();
         }
     );
