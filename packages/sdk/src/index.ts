@@ -1,5 +1,10 @@
 export * from "./types.js";
 export * from "./client.js";
+
+// Export middleware
+export * from "./middleware/express.js";
+export * from "./middleware/fastify.js";
+
 import { SentinelClient } from "./client.js";
 import type { DecisionRequest, DecisionResponse } from "./types.js";
 
