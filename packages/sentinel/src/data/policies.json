@@ -1,0 +1,65 @@
+[
+    {
+        "id": "policy-001",
+        "description": "UA members can edit padron in OPEN stage",
+        "actions": [
+            "padron:edit"
+        ],
+        "rbac": {
+            "anyRole": [
+                "ua",
+                "operaciones"
+            ]
+        },
+        "abac": {
+            "all": [
+                {
+                    "eq": [
+                        "${resource.status}",
+                        "OPEN"
+                    ]
+                },
+                {
+                    "includes": [
+                        "${subject.uaIds}",
+                        "${resource.uaId}"
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "policy-002",
+        "description": "Admins can do anything",
+        "actions": [
+            "*"
+        ],
+        "rbac": {
+            "anyRole": [
+                "admin"
+            ]
+        }
+    },
+    {
+        "id": "policy-003",
+        "description": "Finance can approve budgets when PENDING",
+        "actions": [
+            "budget:approve"
+        ],
+        "rbac": {
+            "anyRole": [
+                "finance"
+            ]
+        },
+        "abac": {
+            "all": [
+                {
+                    "eq": [
+                        "${resource.status}",
+                        "PENDING"
+                    ]
+                }
+            ]
+        }
+    }
+]
