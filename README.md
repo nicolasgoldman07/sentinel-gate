@@ -1,0 +1,773 @@
+# 🛡️ Sentinel Gate
+
+**A modern, scalable authorization and authentication service with Policy Enforcement Point (PEP) and Policy Decision Point (PDP) architecture.**
+
+Sentinel Gate is a production-ready authorization microservice that implements Attribute-Based Access Control (ABAC) using JSON Logic policies, integrated with Keycloak for authentication.
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green.svg)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-ISC-blue.svg)](LICENSE)
+
+---
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Quick Start](#-quick-start)
+- [Project Structure](#-project-structure)
+- [How It Works](#-how-it-works)
+- [Usage Examples](#-usage-examples)
+- [Development](#-development)
+- [Configuration](#-configuration)
+- [API Documentation](#-api-documentation)
+- [Testing](#-testing)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
+## ✨ Features
+
+### 🔐 Authentication & Authorization
+
+- **Keycloak Integration**: Enterprise-grade OAuth2/OIDC authentication
+- **JWT Validation**: Automatic token verification using JWKS
+- **ABAC Policies**: Flexible attribute-based access control with JSON Logic
+- **Multi-Tenancy**: Support for multiple applications and contexts
+
+### 🏗️ Architecture
+
+- **PDP (Policy Decision Point)**: Centralized decision-making service
+- **PEP (Policy Enforcement Point)**: SDK with Express/Fastify middleware
+- **Monorepo Structure**: Organized with npm workspaces and Turborepo
+- **Type-Safe**: Full TypeScript coverage with strict typing
+
+### 🚀 Developer Experience
+
+- **Plug & Play SDK**: Easy integration with Express and Fastify
+- **Example Application**: Complete reference implementation
+- **Port Fallback**: Automatic port detection and fallback
+- **Hot Reload**: Development mode with watch support
+- **Comprehensive Docs**: Detailed documentation and examples
+
+### 📊 Policy Engine
+
+- **JSON Logic**: Powerful, declarative policy language
+- **Dynamic Evaluation**: Real-time policy evaluation
+- **Context-Aware**: Policies adapt to application context
+- **Audit Trail**: Track all authorization decisions
+
+---
+
+## 🏛️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Client Application                      │
+│  (Your Express/Fastify/Next.js app using @sentinel/sdk)         │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         │ HTTP Request with JWT
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Policy Enforcement Point (PEP)               │
+│                        (@sentinel/sdk)                          │
+│  • Extract JWT from Authorization header                        │
+│  • Build authorization request payload                          │
+│  • Call Sentinel PDP for decision                               │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         │ POST /decision
+                         │ { subject, action, resource, context }
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Policy Decision Point (PDP)                    │
+│                        (Sentinel Service)                       │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 1. Validate JWT with Keycloak JWKS                      │    │
+│  │    • Verify signature                                   │    │
+│  │    • Check expiration                                   │    │
+│  │    • Extract claims (roles, email, etc.)                │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 2. Load & Evaluate Policies                             │    │
+│  │    • Filter policies by context (app)                   │    │
+│  │    • Apply JSON Logic rules                             │    │
+│  │    • Match subject, action, resource                    │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ 3. Return Decision                                      │    │
+│  │    { allow: true/false, reason, policyId }              │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         │ Decision Response
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      Keycloak (Identity Provider)               │
+│  • Issues JWT tokens                                            │
+│  • Manages users, roles, realms                                 │
+│  • Provides JWKS endpoint for public keys                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js**: v20+ (tested with v20.19.3)
+- **npm**: v9+
+- **Docker**: For running Keycloak
+- **jq**: For parsing JSON in terminal (optional)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/nicolasgoldman07/sentinel-gate.git
+cd sentinel-gate
+
+# Install dependencies
+npm install
+
+# Build all packages
+npm run build
+```
+
+### Start Services
+
+**Terminal 1 - Start Keycloak:**
+
+```bash
+npm run keycloak:start
+# Wait for: "Keycloak 23.0 ... started"
+# Access at: http://localhost:8080
+```
+
+**Terminal 2 - Start Sentinel PDP:**
+
+```bash
+npm run dev
+# Sentinel will start on http://localhost:3000
+# Automatically finds available port if 3000 is busy
+```
+
+**Terminal 3 - Start Example App (optional):**
+
+```bash
+cd packages/example-app
+npm run dev
+# Example app will start on http://localhost:3001
+```
+
+### Test the System
+
+```bash
+# 1. Obtain a JWT token from Keycloak
+export TOKEN=$(curl -s -X POST http://localhost:8080/realms/sentinel/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=sentinel-api" \
+  -d "username=admin" \
+  -d "password=admin123" | jq -r '.access_token')
+
+# 2. Verify the token
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/auth/verify | jq
+
+# 3. Make an authorization decision
+curl -X POST http://localhost:3000/decision \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": { "sub": "admin", "roles": ["admin"] },
+    "action": "padron:edit",
+    "resource": { "type": "padron", "status": "OPEN" },
+    "context": { "app": "unlp" }
+  }' | jq
+
+# Expected response:
+# {
+#   "allow": true,
+#   "reason": "Matched Admins UNLP pueden todo en la app UNLP",
+#   "matchedPolicyId": "unlp-900"
+# }
+```
+
+---
+
+## 📁 Project Structure
+
+```
+sentinel-gate/
+├── packages/
+│   ├── sentinel/              # PDP - Policy Decision Point
+│   │   ├── src/
+│   │   │   ├── config/        # Configuration (env, keycloak)
+│   │   │   ├── data/          # Policy files (JSON)
+│   │   │   ├── middleware/    # Keycloak auth middleware
+│   │   │   ├── repositories/  # Policy storage (file, DynamoDB)
+│   │   │   ├── routes/        # API routes (health, auth, decision, policies)
+│   │   │   ├── services/      # Business logic (policy evaluation)
+│   │   │   ├── types/         # TypeScript type definitions
+│   │   │   ├── utils/         # Utilities (logger, JWT, port helper)
+│   │   │   └── server.ts      # Main application entry
+│   │   └── package.json
+│   │
+│   ├── sdk/                   # PEP - Policy Enforcement Point
+│   │   ├── src/
+│   │   │   ├── middleware/    # Express & Fastify integrations
+│   │   │   │   ├── express.ts # Express middleware
+│   │   │   │   └── fastify.ts # Fastify plugin
+│   │   │   ├── client.ts      # HTTP client for Sentinel
+│   │   │   ├── types.ts       # Request/response types
+│   │   │   └── index.ts       # Public API exports
+│   │   ├── README.md          # SDK documentation
+│   │   └── package.json
+│   │
+│   ├── example-app/           # Reference implementation
+│   │   ├── src/
+│   │   │   ├── utils/         # Port helper
+│   │   │   └── server.ts      # Express app with SDK
+│   │   ├── README.md          # Usage examples
+│   │   └── package.json
+│   │
+│   └── infra/                 # Infrastructure as Code
+│       ├── docker-compose.yml # Keycloak + Postgres
+│       ├── keycloak/
+│       │   └── realm-export.json  # Keycloak realm config
+│       └── package.json
+│
+├── test.sh                    # Automated test suite
+├── turbo.json                 # Turborepo configuration
+├── package.json               # Root package (workspace)
+└── README.md                  # This file
+```
+
+### Package Descriptions
+
+| Package         | Description                                                | Port |
+| --------------- | ---------------------------------------------------------- | ---- |
+| **sentinel**    | Core PDP service - validates tokens and evaluates policies | 3000 |
+| **sdk**         | Client library with Express/Fastify middleware             | N/A  |
+| **example-app** | Sample application demonstrating SDK usage                 | 3001 |
+| **infra**       | Docker Compose setup for Keycloak                          | 8080 |
+
+---
+
+## 🔧 How It Works
+
+### 1. Authentication Flow
+
+```typescript
+// Client obtains token from Keycloak
+const response = await fetch(
+  "http://localhost:8080/realms/sentinel/protocol/openid-connect/token",
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "password",
+      client_id: "sentinel-api",
+      username: "admin",
+      password: "admin123",
+    }),
+  }
+);
+
+const { access_token } = await response.json();
+```
+
+### 2. Authorization Request
+
+```typescript
+// Client app (using SDK) makes authorization request
+import { SentinelClient } from "@sentinel/sdk";
+
+const client = new SentinelClient({
+  baseUrl: "http://localhost:3000",
+  token: access_token,
+});
+
+const decision = await client.authorize({
+  subject: {
+    sub: "user123",
+    roles: ["admin"],
+    uaIds: ["FCEyN"],
+  },
+  action: "padron:edit",
+  resource: {
+    type: "padron",
+    id: "123",
+    status: "OPEN",
+    uaId: "FCEyN",
+  },
+  context: {
+    app: "unlp",
+  },
+});
+
+if (decision.allow) {
+  // Proceed with operation
+} else {
+  // Deny access
+  throw new Error(decision.reason);
+}
+```
+
+### 3. Policy Evaluation
+
+Sentinel uses **JSON Logic** to evaluate policies. Example policy:
+
+```json
+{
+  "id": "unlp-100",
+  "name": "UA users can edit padron in OPEN stage",
+  "effect": "allow",
+  "context": { "app": "unlp" },
+  "condition": {
+    "and": [
+      { "in": ["ua", { "var": "subject.roles" }] },
+      { "===": [{ "var": "action" }, "padron:edit"] },
+      { "===": [{ "var": "resource.type" }, "padron"] },
+      { "===": [{ "var": "resource.status" }, "OPEN"] },
+      { "in": [{ "var": "resource.uaId" }, { "var": "subject.uaIds" }] }
+    ]
+  }
+}
+```
+
+**This policy allows** UA users to edit padrons that are:
+
+- In OPEN status
+- Belong to their assigned UA (university unit)
+
+---
+
+## 💡 Usage Examples
+
+### Express Integration
+
+```typescript
+import express from "express";
+import { sentinelMiddleware, protect } from "@sentinel/sdk";
+
+const app = express();
+
+// Add Sentinel middleware
+app.use(
+  sentinelMiddleware({
+    sentinelUrl: "http://localhost:3000",
+    getToken: (req) => req.headers.authorization?.replace("Bearer ", ""),
+    getSubject: (req) => req.user,
+  })
+);
+
+// Protect a route
+app.put(
+  "/padron/:id",
+  protect("padron:edit", (req) => ({ type: "padron", id: req.params.id }), {
+    app: "unlp",
+  }),
+  (req, res) => {
+    res.json({ message: "Padron updated" });
+  }
+);
+```
+
+### Fastify Integration
+
+```typescript
+import Fastify from "fastify";
+import { sentinelPlugin, protectRoute } from "@sentinel/sdk";
+
+const fastify = Fastify();
+
+// Register Sentinel plugin
+await fastify.register(sentinelPlugin, {
+  sentinelUrl: "http://localhost:3000",
+});
+
+// Protect a route
+fastify.put(
+  "/padron/:id",
+  {
+    preHandler: protectRoute(
+      "padron:edit",
+      (req) => ({ type: "padron", id: req.params.id }),
+      { app: "unlp" }
+    ),
+  },
+  async (request, reply) => {
+    return { message: "Padron updated" };
+  }
+);
+```
+
+### Manual Authorization
+
+```typescript
+import { SentinelRequest } from "@sentinel/sdk";
+
+app.get("/mesa/:id", async (req, res) => {
+  const decision = await (req as SentinelRequest).sentinel.authorize(
+    "mesa:view",
+    { type: "mesa", id: req.params.id },
+    { app: "unlp" }
+  );
+
+  if (!decision.allow) {
+    return res.status(403).json({ error: decision.reason });
+  }
+
+  // Continue with business logic...
+});
+```
+
+---
+
+## 🛠️ Development
+
+### Available Scripts
+
+```bash
+# Development (runs all services in watch mode)
+npm run dev
+
+# Build all packages
+npm run build
+
+# Type checking
+npm run typecheck
+
+# Format code
+npm run format
+
+# Clean & reinstall
+npm run clean
+npm run clean:install
+
+# Keycloak management
+npm run keycloak:start    # Start Keycloak
+npm run keycloak:stop     # Stop Keycloak
+npm run keycloak:logs     # View logs
+npm run keycloak:clean    # Remove volumes
+```
+
+### Adding a New Policy
+
+1. Edit `packages/sentinel/src/data/policies.json`
+2. Add your policy following the JSON Logic format:
+
+```json
+{
+  "id": "my-policy-1",
+  "name": "My Custom Policy",
+  "effect": "allow",
+  "context": { "app": "my-app" },
+  "condition": {
+    "and": [
+      { "===": [{ "var": "action" }, "resource:read"] },
+      { "in": ["user", { "var": "subject.roles" }] }
+    ]
+  }
+}
+```
+
+3. Restart Sentinel (hot reload not yet implemented for policies)
+
+### Testing Policies
+
+Use the provided test script:
+
+```bash
+./test.sh
+```
+
+Or test manually:
+
+```bash
+curl -X POST http://localhost:3000/decision \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": { "sub": "user", "roles": ["admin"] },
+    "action": "resource:read",
+    "resource": { "type": "document" },
+    "context": { "app": "my-app" }
+  }'
+```
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+**Sentinel (PDP):**
+
+```bash
+# .env in packages/sentinel/
+PORT=3000
+NODE_ENV=development
+
+# Keycloak configuration
+KEYCLOAK_SERVER_URL=http://localhost:8080
+KEYCLOAK_REALM=sentinel
+KEYCLOAK_CLIENT_ID=sentinel-api
+```
+
+**Example App:**
+
+```bash
+# .env in packages/example-app/
+PORT=3001
+SENTINEL_URL=http://localhost:3000
+```
+
+### Keycloak Configuration
+
+Default users in the included realm:
+
+| Username | Password | Roles |
+| -------- | -------- | ----- |
+| admin    | admin123 | admin |
+| testuser | user123  | user  |
+
+To customize, edit `packages/infra/keycloak/realm-export.json`
+
+---
+
+## 📚 API Documentation
+
+### Sentinel PDP Endpoints
+
+#### `GET /health`
+
+Health check endpoint.
+
+**Response:**
+
+```json
+{ "status": "ok" }
+```
+
+#### `POST /auth/verify`
+
+Verify and decode a JWT token.
+
+**Headers:**
+
+- `Authorization: Bearer <token>`
+
+**Response:**
+
+```json
+{
+  "valid": true,
+  "user": {
+    "sub": "237ceb18-11a5-4869-865e-69fd544fb2b3",
+    "email": "admin@sentinel.local",
+    "username": "admin",
+    "roles": ["admin"]
+  }
+}
+```
+
+#### `POST /decision`
+
+Make an authorization decision.
+
+**Headers:**
+
+- `Authorization: Bearer <token>`
+- `Content-Type: application/json`
+
+**Body:**
+
+```json
+{
+  "subject": {
+    "sub": "user-id",
+    "roles": ["admin"],
+    "uaIds": ["FCEyN"]
+  },
+  "action": "padron:edit",
+  "resource": {
+    "type": "padron",
+    "id": "123",
+    "status": "OPEN"
+  },
+  "context": {
+    "app": "unlp"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "allow": true,
+  "reason": "Matched policy: unlp-100",
+  "matchedPolicyId": "unlp-100"
+}
+```
+
+#### `GET /policies`
+
+List all policies (requires admin role).
+
+**Response:**
+
+```json
+[
+  {
+    "id": "unlp-100",
+    "name": "UA users can edit padron",
+    "effect": "allow",
+    "context": { "app": "unlp" },
+    "condition": { ... }
+  }
+]
+```
+
+---
+
+## 🧪 Testing
+
+### Automated Tests
+
+Run the comprehensive test suite:
+
+```bash
+./test.sh
+```
+
+This will test:
+
+- ✅ Token acquisition from Keycloak
+- ✅ UNLP policies (padron editing, mesa viewing)
+- ✅ Hoops policies (court booking, booking cancellation)
+- ✅ Admin vs regular user permissions
+
+### Manual Testing
+
+See the [Quick Start](#-quick-start) section for manual testing examples.
+
+---
+
+## 🚀 Deployment
+
+### Production Checklist
+
+- [ ] Use external Keycloak instance (not Docker)
+- [ ] Set `NODE_ENV=production`
+- [ ] Configure proper CORS settings
+- [ ] Use PostgreSQL/DynamoDB for policy storage (not JSON file)
+- [ ] Enable audit logging
+- [ ] Set up monitoring (Prometheus/Grafana)
+- [ ] Configure HTTPS/TLS
+- [ ] Review and harden security policies
+- [ ] Set up backup strategy for policies
+
+### Docker Deployment (Example)
+
+```dockerfile
+# Dockerfile for Sentinel
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY packages/sentinel/dist ./dist
+EXPOSE 3000
+CMD ["node", "dist/server.js"]
+```
+
+### Environment-Specific Configs
+
+**Production:**
+
+```bash
+NODE_ENV=production
+PORT=3000
+KEYCLOAK_SERVER_URL=https://keycloak.yourcompany.com
+LOG_LEVEL=info
+```
+
+**Staging:**
+
+```bash
+NODE_ENV=staging
+PORT=3000
+KEYCLOAK_SERVER_URL=https://keycloak-staging.yourcompany.com
+LOG_LEVEL=debug
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Development Guidelines
+
+- Write tests for new features
+- Follow existing code style (use `npm run format`)
+- Update documentation for API changes
+- Keep commits atomic and well-described
+
+---
+
+## 📄 License
+
+This project is licensed under the ISC License.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Keycloak** - Identity and Access Management
+- **JSON Logic** - Declarative policy engine
+- **Fastify** - Fast and low overhead web framework
+- **Turborepo** - High-performance monorepo build system
+
+---
+
+## 📞 Support
+
+For questions and support:
+
+- **Issues**: [GitHub Issues](https://github.com/nicolasgoldman07/sentinel-gate/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/nicolasgoldman07/sentinel-gate/discussions)
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] **Policy Management UI** - Web dashboard for managing policies
+- [ ] **Policy CRUD API** - REST API for policy management
+- [ ] **Audit Logging** - Track all authorization decisions
+- [ ] **Database Storage** - PostgreSQL/DynamoDB for policies
+- [ ] **Caching Layer** - Redis for decision caching
+- [ ] **Metrics & Analytics** - Prometheus metrics and dashboards
+- [ ] **Policy Templates** - Pre-built policy templates (RBAC, ABAC, etc.)
+- [ ] **Batch Operations** - Evaluate multiple decisions in one call
+- [ ] **Webhooks** - Notify on policy changes
+- [ ] **OpenAPI/Swagger** - Interactive API documentation
+
+---
+
+Made with ❤️ by [nicolasgoldman07](https://github.com/nicolasgoldman07)
