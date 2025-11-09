@@ -37,9 +37,7 @@ app.use((req: any, res, next) => {
                     email: payload.email || payload.preferred_username,
                     username: payload.preferred_username,
                     roles: payload.realm_access?.roles || [],
-                    // Add any custom claims your app needs
-                    uaIds: payload.uaIds || [], // For UNLP example
-                    tenantId: payload.tenantId || "clubA", // For Hoops example
+                    departmentIds: payload.departmentIds || ["dept-1"],
                 };
             }
         } catch (error) {
@@ -73,13 +71,16 @@ app.get("/", (req, res) => {
         message: "Sentinel Example App",
         endpoints: {
             health: "GET /health",
-            unlp: {
-                editPadron: "PUT /unlp/padron/:id (requires admin or ua role)",
-                viewMesa: "GET /unlp/mesa/:id (requires fiscal role)",
+            documents: {
+                create: "POST /documents (requires user role)",
+                read: "GET /documents/:id (requires owner or manager)",
+                update: "PUT /documents/:id (requires owner or dept manager)",
+                delete: "DELETE /documents/:id (requires owner or admin)",
+                list: "GET /documents (list documents in user's department)",
             },
-            hoops: {
-                bookCourt: "POST /hoops/courts/:id/book (requires player role)",
-                cancelBooking: "DELETE /hoops/bookings/:id (requires owner or admin)",
+            resources: {
+                view: "GET /resources/:id (requires appropriate visibility)",
+                create: "POST /resources (requires manager role)",
             },
         },
     });
@@ -90,49 +91,65 @@ app.get("/health", (req, res) => {
 });
 
 // ============================================
-// UNLP Example Routes
+// Document Management Routes
 // ============================================
 
 /**
- * Edit a padron - requires authorization check
- * Uses the protect() helper for simple authorization
+ * Create a new document
+ * Policy: policy-3 (users can create documents)
  */
-app.put(
-    "/unlp/padron/:id",
+app.post(
+    "/documents",
     protect(
-        "padron:edit",
+        "document:create",
         (req) => ({
-            type: "padron",
-            id: req.params.id,
-            uaId: "FCEyN",
-            status: "OPEN",
-        }),
-        { app: "unlp" }
+            type: "document",
+        })
     ),
     async (req: Request, res: Response) => {
-        res.json({
-            message: `Padron ${req.params.id} updated successfully`,
-            updatedBy: (req as any).user.email,
+        const user = (req as any).user;
+        const { title, content } = req.body;
+
+        res.status(201).json({
+            message: "Document created successfully",
+            document: {
+                id: `doc-${Date.now()}`,
+                title,
+                content,
+                ownerId: user.sub,
+                departmentId: user.departmentIds?.[0] || "dept-1",
+                createdAt: new Date().toISOString(),
+            },
         });
     }
 );
 
 /**
- * View a mesa - uses manual authorization for more control
+ * Read a document
+ * Policy: policy-2 (users can read own documents), policy-6 (managers can read all)
  */
-app.get("/unlp/mesa/:id", async (req, res: Response) => {
+app.get("/documents/:id", async (req, res: Response) => {
     const sentinelReq = req as any as SentinelRequest;
     const user = (req as any).user;
 
+    // Simulate fetching document from database
+    const document = {
+        id: req.params.id,
+        title: "Sample Document",
+        content: "Document content here",
+        ownerId: "user-123", // Simulate different owner
+        departmentId: "dept-1",
+    };
+
     // Manual authorization check
     const decision = await sentinelReq.sentinel.authorize(
-        "mesa:view",
+        "document:read",
         {
-            type: "mesa",
-            id: req.params.id,
-            uaId: "FCEyN",
-        },
-        { app: "unlp" }
+            type: "document",
+            id: document.id,
+            ownerId: document.ownerId,
+            departmentId: document.departmentId,
+        }
     );
 
     if (!decision.allow) {
@@ -143,78 +160,66 @@ app.get("/unlp/mesa/:id", async (req, res: Response) => {
     }
 
     res.json({
-        message: `Mesa ${req.params.id} details`,
-        mesa: {
-            id: req.params.id,
-            uaId: "FCEyN",
-            voters: 150,
-        },
+        document,
         viewedBy: user.email,
     });
 });
 
-// ============================================
-// Hoops Example Routes
-// ============================================
-
 /**
- * Book a court - requires player role and eligibility
+ * Update a document
+ * Policy: policy-4 (users can update own), policy-7 (managers can update in department)
  */
-app.post(
-    "/hoops/courts/:id/book",
+app.put(
+    "/documents/:id",
     protect(
-        "court:book",
+        "document:update",
         (req) => ({
-            type: "court",
+            type: "document",
             id: req.params.id,
-            tenantId: (req as any).user.tenantId,
-            clubId: "CAB",
-        }),
-        (req) => ({
-            app: "hoops",
-            isEligibleToBook: true, // In real app, check player's eligibility
+            ownerId: (req as any).user.sub, // In real app, fetch from DB
+            departmentId: (req as any).user.departmentIds?.[0] || "dept-1",
         })
     ),
     async (req: Request, res: Response) => {
         const user = (req as any).user;
+        const { title, content } = req.body;
+
         res.json({
-            message: `Court ${req.params.id} booked successfully`,
-            booking: {
-                id: `B${Date.now()}`,
-                courtId: req.params.id,
-                playerId: user.sub,
-                time: new Date().toISOString(),
+            message: `Document ${req.params.id} updated successfully`,
+            document: {
+                id: req.params.id,
+                title,
+                content,
+                updatedBy: user.email,
+                updatedAt: new Date().toISOString(),
             },
         });
     }
 );
 
 /**
- * Cancel a booking - can be done by owner or club admin
+ * Delete a document
+ * Policy: policy-5 (users can delete own), policy-1 (admins can delete any)
  */
-app.delete("/hoops/bookings/:id", async (req, res: Response) => {
+app.delete("/documents/:id", async (req, res: Response) => {
     const sentinelReq = req as any as SentinelRequest;
     const user = (req as any).user;
-    const bookingId = req.params.id;
+    const documentId = req.params.id;
 
-    // In a real app, you'd fetch the booking from DB
-    const booking = {
-        id: bookingId,
-        playerId: "player1", // Simulate different owner
-        clubId: "CAB",
+    // In a real app, fetch document from database
+    const document = {
+        id: documentId,
+        ownerId: "user-123", // Simulate different owner
+        departmentId: "dept-1",
     };
 
     const decision = await sentinelReq.sentinel.authorize(
-        "booking:cancel",
+        "document:delete",
         {
-            type: "booking",
-            bookingId: booking.id,
-            playerId: booking.playerId,
-            clubId: booking.clubId,
-        },
-        {
-            app: "hoops",
-            canCancel: true, // In real app, check if within cancellation window
+            type: "document",
+            id: document.id,
+            ownerId: document.ownerId,
+            departmentId: document.departmentId,
         }
     );
 
@@ -227,10 +232,107 @@ app.delete("/hoops/bookings/:id", async (req, res: Response) => {
     }
 
     res.json({
-        message: `Booking ${bookingId} cancelled successfully`,
-        cancelledBy: user.email,
+        message: `Document ${documentId} deleted successfully`,
+        deletedBy: user.email,
     });
 });
+
+/**
+ * List documents in user's department
+ * Policy: policy-8 (users can list documents in department)
+ */
+app.get("/documents", async (req, res: Response) => {
+    const user = (req as any).user;
+    const departmentId = user.departmentIds?.[0] || "dept-1";
+
+    // In a real app, query database for documents in department
+    const documents = [
+        {
+            id: "doc-1",
+            title: "Department Report",
+            ownerId: user.sub,
+            departmentId,
+        },
+        {
+            id: "doc-2",
+            title: "Team Notes",
+            ownerId: "user-456",
+            departmentId,
+        },
+    ];
+
+    res.json({
+        documents,
+        department: departmentId,
+        count: documents.length,
+    });
+});
+
+// ============================================
+// Resource Management Routes
+// ============================================
+
+/**
+ * View a resource
+ * Policy: policy-9 (users can view public resources)
+ */
+app.get(
+    "/resources/:id",
+    protect(
+        "resource:view",
+        (req) => ({
+            type: "resource",
+            id: req.params.id,
+            visibility: "public", // In real app, fetch from DB
+            departmentId: "dept-1",
+        })
+    ),
+    async (req: Request, res: Response) => {
+        const user = (req as any).user;
+
+        res.json({
+            resource: {
+                id: req.params.id,
+                name: "Public Resource",
+                description: "This is a publicly accessible resource",
+                visibility: "public",
+                departmentId: "dept-1",
+            },
+            viewedBy: user.email,
+        });
+    }
+);
+
+/**
+ * Create a resource
+ * Policy: policy-10 (managers can create resources)
+ */
+app.post(
+    "/resources",
+    protect(
+        "resource:create",
+        (req) => ({
+            type: "resource",
+        })
+    ),
+    async (req: Request, res: Response) => {
+        const user = (req as any).user;
+        const { name, description, visibility = "public" } = req.body;
+
+        res.status(201).json({
+            message: "Resource created successfully",
+            resource: {
+                id: `res-${Date.now()}`,
+                name,
+                description,
+                visibility,
+                departmentId: user.departmentIds?.[0] || "dept-1",
+                createdBy: user.sub,
+                createdAt: new Date().toISOString(),
+            },
+        });
+    }
+);
 
 // ============================================
 // Start Server
@@ -249,12 +351,15 @@ const startServer = async () => {
             console.log(`\n🚀 Example App running on http://localhost:${PORT}`);
             console.log(`📡 Connected to Sentinel at ${SENTINEL_URL}`);
             console.log(`\n📚 Available endpoints:`);
-            console.log(`   GET  http://localhost:${PORT}/              - App info`);
-            console.log(`   GET  http://localhost:${PORT}/health         - Health check`);
-            console.log(`   PUT  http://localhost:${PORT}/unlp/padron/:id - Edit padron (UNLP)`);
-            console.log(`   GET  http://localhost:${PORT}/unlp/mesa/:id   - View mesa (UNLP)`);
-            console.log(`   POST http://localhost:${PORT}/hoops/courts/:id/book - Book court (Hoops)`);
-            console.log(`   DEL  http://localhost:${PORT}/hoops/bookings/:id    - Cancel booking (Hoops)`);
+            console.log(`   GET  http://localhost:${PORT}/                - App info`);
+            console.log(`   GET  http://localhost:${PORT}/health          - Health check`);
+            console.log(`   POST http://localhost:${PORT}/documents       - Create document`);
+            console.log(`   GET  http://localhost:${PORT}/documents/:id   - Read document`);
+            console.log(`   PUT  http://localhost:${PORT}/documents/:id   - Update document`);
+            console.log(`   DEL  http://localhost:${PORT}/documents/:id   - Delete document`);
+            console.log(`   GET  http://localhost:${PORT}/documents       - List documents`);
+            console.log(`   GET  http://localhost:${PORT}/resources/:id   - View resource`);
+            console.log(`   POST http://localhost:${PORT}/resources       - Create resource`);
             console.log(`\n🔑 Get a Keycloak token:`);
             console.log(`   export TOKEN=$(curl -s -X POST http://localhost:8080/realms/sentinel/protocol/openid-connect/token \\`);
             console.log(`     -H "Content-Type: application/x-www-form-urlencoded" \\`);
@@ -263,7 +368,8 @@ const startServer = async () => {
             console.log(`     -d "username=admin" \\`);
             console.log(`     -d "password=admin123" | jq -r '.access_token')`);
             console.log(`\n🧪 Test with token:`);
-            console.log(`   curl -X PUT http://localhost:${PORT}/unlp/padron/123 -H "Authorization: Bearer $TOKEN"`);
+            console.log(`   curl -X POST http://localhost:${PORT}/documents -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"title":"Test Doc","content":"Hello"}'`);
+            console.log(`   curl -X GET http://localhost:${PORT}/documents/doc-123 -H "Authorization: Bearer $TOKEN"`);
         });
     } catch (error) {
         console.error("❌ Failed to start server:", error);

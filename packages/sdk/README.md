@@ -25,17 +25,16 @@ const client = new SentinelClient({
 const decision = await client.authorize({
   subject: {
     sub: "user123",
-    roles: ["admin"],
-    uaIds: ["FCEyN"],
+    roles: ["user"],
+    email: "user@example.com",
+    departmentIds: ["dept-1"],
   },
-  action: "padron:edit",
+  action: "document:read",
   resource: {
-    type: "padron",
-    id: "123",
-    status: "OPEN",
-  },
-  context: {
-    app: "unlp",
+    type: "document",
+    id: "doc-123",
+    ownerId: "user123",
+    departmentId: "dept-1",
   },
 });
 
@@ -53,10 +52,9 @@ import { authorize } from "@sentinel/sdk";
 
 const result = await authorize(
   {
-    subject: { sub: "user123", roles: ["player"] },
-    action: "court:book",
-    resource: { type: "court", id: "court-1" },
-    context: { app: "hoops" },
+    subject: { sub: "user123", roles: ["manager"], departmentIds: ["dept-1"] },
+    action: "resource:create",
+    resource: { type: "resource" },
   },
   {
     baseUrl: "http://localhost:3000",
@@ -97,20 +95,20 @@ Simplest way to protect routes:
 
 ```typescript
 app.put(
-  "/padron/:id",
+  "/documents/:id",
   protect(
-    "padron:edit", // action
+    "document:update", // action
     (req) => ({
       // resource builder
-      type: "padron",
+      type: "document",
       id: req.params.id,
-      status: "OPEN",
-    }),
-    { app: "unlp" } // context
+      ownerId: req.user.sub,
+      departmentId: req.user.departmentIds[0],
+    })
   ),
   async (req, res) => {
     // This handler only runs if authorization passes
-    res.json({ message: "Padron updated" });
+    res.json({ message: "Document updated" });
   }
 );
 ```
@@ -120,14 +118,15 @@ app.put(
 For more control over the authorization flow:
 
 ```typescript
-app.get("/mesa/:id", async (req, res) => {
+app.get("/documents/:id", async (req, res) => {
   const sentinelReq = req as any as SentinelRequest;
 
-  const decision = await sentinelReq.sentinel.authorize(
-    "mesa:view",
-    { type: "mesa", id: req.params.id },
-    { app: "unlp" }
-  );
+  const decision = await sentinelReq.sentinel.authorize("document:read", {
+    type: "document",
+    id: req.params.id,
+    ownerId: req.user.sub,
+    departmentId: req.user.departmentIds[0],
+  });
 
   if (!decision.allow) {
     return res.status(403).json({
@@ -137,7 +136,7 @@ app.get("/mesa/:id", async (req, res) => {
   }
 
   // Continue with business logic
-  res.json({ mesa: { id: req.params.id } });
+  res.json({ document: { id: req.params.id } });
 });
 ```
 
@@ -188,20 +187,17 @@ await fastify.register(sentinelPlugin, {
 
 ```typescript
 fastify.put(
-  "/padron/:id",
+  "/documents/:id",
   {
-    preHandler: protectRoute(
-      "padron:edit",
-      (req) => ({
-        type: "padron",
-        id: (req.params as any).id,
-        status: "OPEN",
-      }),
-      { app: "unlp" }
-    ),
+    preHandler: protectRoute("document:update", (req) => ({
+      type: "document",
+      id: (req.params as any).id,
+      ownerId: req.user.sub,
+      departmentId: req.user.departmentIds[0],
+    })),
   },
   async (request, reply) => {
-    return { message: "Padron updated" };
+    return { message: "Document updated" };
   }
 );
 ```
@@ -209,14 +205,15 @@ fastify.put(
 #### Option 2: Manual Authorization
 
 ```typescript
-fastify.get("/mesa/:id", async (request, reply) => {
+fastify.get("/documents/:id", async (request, reply) => {
   const sentinelReq = request as SentinelFastifyRequest;
 
-  const decision = await sentinelReq.sentinel.authorize(
-    "mesa:view",
-    { type: "mesa", id: (request.params as any).id },
-    { app: "unlp" }
-  );
+  const decision = await sentinelReq.sentinel.authorize("document:read", {
+    type: "document",
+    id: (request.params as any).id,
+    ownerId: request.user.sub,
+    departmentId: request.user.departmentIds[0],
+  });
 
   if (!decision.allow) {
     return reply.code(403).send({
@@ -225,7 +222,7 @@ fastify.get("/mesa/:id", async (request, reply) => {
     });
   }
 
-  return { mesa: { id: (request.params as any).id } };
+  return { document: { id: (request.params as any).id } };
 });
 ```
 

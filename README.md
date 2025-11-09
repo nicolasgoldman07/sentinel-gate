@@ -298,18 +298,16 @@ const client = new SentinelClient({
 const decision = await client.authorize({
   subject: {
     sub: "user123",
-    roles: ["admin"],
-    uaIds: ["FCEyN"],
+    roles: ["user"],
+    email: "user@example.com",
+    departmentIds: ["dept-1"],
   },
-  action: "padron:edit",
+  action: "document:read",
   resource: {
-    type: "padron",
-    id: "123",
-    status: "OPEN",
-    uaId: "FCEyN",
-  },
-  context: {
-    app: "unlp",
+    type: "document",
+    id: "doc-123",
+    ownerId: "user123",
+    departmentId: "dept-1",
   },
 });
 
@@ -327,26 +325,25 @@ Sentinel uses **JSON Logic** to evaluate policies. Example policy:
 
 ```json
 {
-  "id": "unlp-100",
-  "name": "UA users can edit padron in OPEN stage",
+  "id": "policy-2",
+  "name": "Users can read their own documents",
   "effect": "allow",
-  "context": { "app": "unlp" },
   "condition": {
     "and": [
-      { "in": ["ua", { "var": "subject.roles" }] },
-      { "===": [{ "var": "action" }, "padron:edit"] },
-      { "===": [{ "var": "resource.type" }, "padron"] },
-      { "===": [{ "var": "resource.status" }, "OPEN"] },
-      { "in": [{ "var": "resource.uaId" }, { "var": "subject.uaIds" }] }
+      { "in": ["user", { "var": "subject.roles" }] },
+      { "===": [{ "var": "action" }, "document:read"] },
+      { "===": [{ "var": "resource.type" }, "document"] },
+      { "===": [{ "var": "resource.ownerId" }, { "var": "subject.userId" }] }
     ]
   }
 }
 ```
 
-**This policy allows** UA users to edit padrons that are:
+**This policy allows** users to read documents where:
 
-- In OPEN status
-- Belong to their assigned UA (university unit)
+- They have the "user" role
+- The resource is a document
+- They are the owner of the document
 
 ---
 
@@ -371,12 +368,15 @@ app.use(
 
 // Protect a route
 app.put(
-  "/padron/:id",
-  protect("padron:edit", (req) => ({ type: "padron", id: req.params.id }), {
-    app: "unlp",
-  }),
+  "/documents/:id",
+  protect("document:update", (req) => ({
+    type: "document",
+    id: req.params.id,
+    ownerId: req.user.sub,
+    departmentId: req.user.departmentIds[0],
+  })),
   (req, res) => {
-    res.json({ message: "Padron updated" });
+    res.json({ message: "Document updated" });
   }
 );
 ```
@@ -396,16 +396,17 @@ await fastify.register(sentinelPlugin, {
 
 // Protect a route
 fastify.put(
-  "/padron/:id",
+  "/documents/:id",
   {
-    preHandler: protectRoute(
-      "padron:edit",
-      (req) => ({ type: "padron", id: req.params.id }),
-      { app: "unlp" }
-    ),
+    preHandler: protectRoute("document:update", (req) => ({
+      type: "document",
+      id: req.params.id,
+      ownerId: req.user.sub,
+      departmentId: req.user.departmentIds[0],
+    })),
   },
   async (request, reply) => {
-    return { message: "Padron updated" };
+    return { message: "Document updated" };
   }
 );
 ```
@@ -415,11 +416,15 @@ fastify.put(
 ```typescript
 import { SentinelRequest } from "@sentinel/sdk";
 
-app.get("/mesa/:id", async (req, res) => {
+app.get("/documents/:id", async (req, res) => {
   const decision = await (req as SentinelRequest).sentinel.authorize(
-    "mesa:view",
-    { type: "mesa", id: req.params.id },
-    { app: "unlp" }
+    "document:read",
+    {
+      type: "document",
+      id: req.params.id,
+      ownerId: req.user.sub,
+      departmentId: req.user.departmentIds[0],
+    }
   );
 
   if (!decision.allow) {
@@ -470,7 +475,6 @@ npm run keycloak:clean    # Remove volumes
   "id": "my-policy-1",
   "name": "My Custom Policy",
   "effect": "allow",
-  "context": { "app": "my-app" },
   "condition": {
     "and": [
       { "===": [{ "var": "action" }, "resource:read"] },
@@ -497,10 +501,9 @@ curl -X POST http://localhost:3000/decision \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "subject": { "sub": "user", "roles": ["admin"] },
-    "action": "resource:read",
-    "resource": { "type": "document" },
-    "context": { "app": "my-app" }
+    "subject": { "sub": "user-123", "roles": ["user"], "departmentIds": ["dept-1"] },
+    "action": "document:read",
+    "resource": { "type": "document", "id": "doc-123", "ownerId": "user-123" }
   }'
 ```
 
@@ -595,17 +598,16 @@ Make an authorization decision.
 {
   "subject": {
     "sub": "user-id",
-    "roles": ["admin"],
-    "uaIds": ["FCEyN"]
+    "roles": ["user"],
+    "email": "user@example.com",
+    "departmentIds": ["dept-1"]
   },
-  "action": "padron:edit",
+  "action": "document:read",
   "resource": {
-    "type": "padron",
-    "id": "123",
-    "status": "OPEN"
-  },
-  "context": {
-    "app": "unlp"
+    "type": "document",
+    "id": "doc-123",
+    "ownerId": "user-id",
+    "departmentId": "dept-1"
   }
 }
 ```
@@ -615,8 +617,8 @@ Make an authorization decision.
 ```json
 {
   "allow": true,
-  "reason": "Matched policy: unlp-100",
-  "matchedPolicyId": "unlp-100"
+  "reason": "Matched policy: policy-2",
+  "matchedPolicyId": "policy-2"
 }
 ```
 
@@ -629,10 +631,9 @@ List all policies (requires admin role).
 ```json
 [
   {
-    "id": "unlp-100",
-    "name": "UA users can edit padron",
+    "id": "policy-2",
+    "name": "Users can read their own documents",
     "effect": "allow",
-    "context": { "app": "unlp" },
     "condition": { ... }
   }
 ]
@@ -653,9 +654,10 @@ Run the comprehensive test suite:
 This will test:
 
 - ✅ Token acquisition from Keycloak
-- ✅ UNLP policies (padron editing, mesa viewing)
-- ✅ Hoops policies (court booking, booking cancellation)
-- ✅ Admin vs regular user permissions
+- ✅ Document policies (create, read, update, delete)
+- ✅ Resource policies (view, create)
+- ✅ Admin vs regular user vs manager permissions
+- ✅ Owner-based and department-based access control
 
 ### Manual Testing
 

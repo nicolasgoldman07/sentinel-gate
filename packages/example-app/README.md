@@ -7,7 +7,8 @@ This is a sample Express application demonstrating how to integrate Sentinel Gat
 - ✅ Using `sentinelMiddleware()` to add authorization capabilities to Express
 - ✅ Using `protect()` helper for simple route protection
 - ✅ Manual authorization checks with `req.sentinel.authorize()` for more control
-- ✅ UNLP and Hoops policy examples
+- ✅ Generic RBAC policies (documents, resources, roles)
+- ✅ Owner-based and department-based access control
 - ✅ Integration with Keycloak authentication
 
 ## 🚀 Quick Start
@@ -44,30 +45,46 @@ export TOKEN=$(curl -s -X POST http://localhost:8080/realms/sentinel/protocol/op
   -d "password=admin123" | jq -r '.access_token')
 ```
 
-#### Test UNLP Routes
+#### Test Document Routes
 
 ```bash
-# Edit padron (admin can do this)
-curl -X PUT http://localhost:3001/unlp/padron/123 \
+# Create a document (users can do this)
+curl -X POST http://localhost:3001/documents \
   -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json"
+  -H "Content-Type: application/json" \
+  -d '{"title":"My Document","content":"Hello world"}'
 
-# View mesa (fiscales can do this)
-curl http://localhost:3001/unlp/mesa/456 \
+# Read a document (owner or manager can do this)
+curl http://localhost:3001/documents/doc-123 \
+  -H "Authorization: Bearer $TOKEN"
+
+# Update a document (owner or dept manager can do this)
+curl -X PUT http://localhost:3001/documents/doc-123 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Updated Title","content":"New content"}'
+
+# Delete a document (owner or admin can do this)
+curl -X DELETE http://localhost:3001/documents/doc-123 \
+  -H "Authorization: Bearer $TOKEN"
+
+# List documents in your department
+curl http://localhost:3001/documents \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-#### Test Hoops Routes
+#### Test Resource Routes
 
 ```bash
-# Book a court (players can do this)
-curl -X POST http://localhost:3001/hoops/courts/court-1/book \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json"
-
-# Cancel a booking (owner or admin can do this)
-curl -X DELETE http://localhost:3001/hoops/bookings/B123 \
+# View a public resource (users can do this)
+curl http://localhost:3001/resources/res-1 \
   -H "Authorization: Bearer $TOKEN"
+
+# Create a resource (managers can do this)
+curl -X POST http://localhost:3001/resources \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"New Resource","description":"A public resource","visibility":"public"}'
 ```
 
 ## 📝 Code Examples
@@ -80,16 +97,13 @@ The simplest way to protect a route:
 import { protect } from "@sentinel/sdk";
 
 app.put(
-  "/unlp/padron/:id",
-  protect(
-    "padron:edit",
-    (req) => ({
-      type: "padron",
-      id: req.params.id,
-      status: "OPEN",
-    }),
-    { app: "unlp" }
-  ),
+  "/documents/:id",
+  protect("document:update", (req) => ({
+    type: "document",
+    id: req.params.id,
+    ownerId: req.user.sub,
+    departmentId: req.user.departmentIds[0],
+  })),
   async (req, res) => {
     // This handler only runs if authorization passes
   }
@@ -103,14 +117,15 @@ For more control over the authorization flow:
 ```typescript
 import { SentinelRequest } from "@sentinel/sdk";
 
-app.get("/unlp/mesa/:id", async (req, res) => {
+app.get("/documents/:id", async (req, res) => {
   const sentinelReq = req as any as SentinelRequest;
 
-  const decision = await sentinelReq.sentinel.authorize(
-    "mesa:view",
-    { type: "mesa", id: req.params.id },
-    { app: "unlp" }
-  );
+  const decision = await sentinelReq.sentinel.authorize("document:read", {
+    type: "document",
+    id: req.params.id,
+    ownerId: req.user.sub,
+    departmentId: req.user.departmentIds[0],
+  });
 
   if (!decision.allow) {
     return res.status(403).json({
@@ -151,6 +166,6 @@ PORT=3001                             # App port
 
 ## 📚 Learn More
 
-- Main documentation: `../../README.monorepo.md`
+- Main documentation: `../../README.md`
 - SDK documentation: `../sdk/README.md`
 - Policies: `../sentinel/src/data/policies.json`

@@ -1,119 +1,7 @@
 [
     {
-        "id": "unlp-001",
-        "description": "UA members can edit padron in OPEN stage",
-        "actions": [
-            "padron:edit"
-        ],
-        "rbac": {
-            "anyRole": [
-                "ua",
-                "operaciones"
-            ]
-        },
-        "abac": {
-            "and": [
-                {
-                    "==": [
-                        {
-                            "var": "context.app"
-                        },
-                        "unlp"
-                    ]
-                },
-                {
-                    "==": [
-                        {
-                            "var": "resource.status"
-                        },
-                        "OPEN"
-                    ]
-                },
-                {
-                    "in": [
-                        {
-                            "var": "resource.uaId"
-                        },
-                        {
-                            "var": "subject.uaIds"
-                        }
-                    ]
-                }
-            ]
-        }
-    },
-    {
-        "id": "unlp-002",
-        "description": "Fiscales can view mesas assigned to their UA",
-        "actions": [
-            "mesa:view"
-        ],
-        "rbac": {
-            "anyRole": [
-                "fiscal"
-            ]
-        },
-        "abac": {
-            "and": [
-                {
-                    "==": [
-                        {
-                            "var": "context.app"
-                        },
-                        "unlp"
-                    ]
-                },
-                {
-                    "in": [
-                        {
-                            "var": "resource.uaId"
-                        },
-                        {
-                            "var": "subject.uaIds"
-                        }
-                    ]
-                }
-            ]
-        }
-    },
-    {
-        "id": "unlp-003",
-        "description": "Resultados visibles solo en PUBLISHED",
-        "actions": [
-            "resultado:view"
-        ],
-        "rbac": {
-            "anyRole": [
-                "ua",
-                "operaciones",
-                "fiscal",
-                "candidato"
-            ]
-        },
-        "abac": {
-            "and": [
-                {
-                    "==": [
-                        {
-                            "var": "context.app"
-                        },
-                        "unlp"
-                    ]
-                },
-                {
-                    "==": [
-                        {
-                            "var": "resource.status"
-                        },
-                        "PUBLISHED"
-                    ]
-                }
-            ]
-        }
-    },
-    {
-        "id": "unlp-900",
-        "description": "Admins UNLP pueden todo en la app UNLP",
+        "id": "policy-1",
+        "description": "Admins have full access to all resources",
         "actions": [
             "*"
         ],
@@ -121,130 +9,90 @@
             "anyRole": [
                 "admin"
             ]
-        },
-        "abac": {
-            "==": [
-                {
-                    "var": "context.app"
-                },
-                "unlp"
-            ]
         }
     },
     {
-        "id": "hoops-001",
-        "description": "Players can book courts in their tenant if eligible",
+        "id": "policy-2",
+        "description": "Users can read their own documents",
         "actions": [
-            "court:book"
+            "document:read"
         ],
         "rbac": {
             "anyRole": [
-                "player"
+                "user"
             ]
         },
         "abac": {
             "and": [
                 {
-                    "==": [
+                    "===": [
                         {
-                            "var": "context.app"
+                            "var": "resource.type"
                         },
-                        "hoops"
+                        "document"
                     ]
                 },
                 {
-                    "==": [
+                    "===": [
                         {
-                            "var": "resource.tenantId"
-                        },
-                        {
-                            "var": "subject.tenantId"
-                        }
-                    ]
-                },
-                {
-                    "==": [
-                        {
-                            "var": "context.isEligibleToBook"
-                        },
-                        true
-                    ]
-                }
-            ]
-        }
-    },
-    {
-        "id": "hoops-002",
-        "description": "Players can cancel own booking if canCancel is true",
-        "actions": [
-            "booking:cancel"
-        ],
-        "rbac": {
-            "anyRole": [
-                "player"
-            ]
-        },
-        "abac": {
-            "and": [
-                {
-                    "==": [
-                        {
-                            "var": "context.app"
-                        },
-                        "hoops"
-                    ]
-                },
-                {
-                    "==": [
-                        {
-                            "var": "resource.playerId"
+                            "var": "resource.ownerId"
                         },
                         {
                             "var": "subject.sub"
                         }
                     ]
-                },
-                {
-                    "==": [
-                        {
-                            "var": "context.canCancel"
-                        },
-                        true
-                    ]
                 }
             ]
         }
     },
     {
-        "id": "hoops-003",
-        "description": "Club admins manage bookings of their club",
+        "id": "policy-3",
+        "description": "Users can create documents",
         "actions": [
-            "booking:cancel",
-            "booking:update",
-            "club:manage"
+            "document:create"
         ],
         "rbac": {
             "anyRole": [
-                "club_admin"
+                "user"
+            ]
+        },
+        "abac": {
+            "===": [
+                {
+                    "var": "resource.type"
+                },
+                "document"
+            ]
+        }
+    },
+    {
+        "id": "policy-4",
+        "description": "Users can update their own documents",
+        "actions": [
+            "document:update"
+        ],
+        "rbac": {
+            "anyRole": [
+                "user"
             ]
         },
         "abac": {
             "and": [
                 {
-                    "==": [
+                    "===": [
                         {
-                            "var": "context.app"
+                            "var": "resource.type"
                         },
-                        "hoops"
+                        "document"
                     ]
                 },
                 {
-                    "in": [
+                    "===": [
                         {
-                            "var": "resource.clubId"
+                            "var": "resource.ownerId"
                         },
                         {
-                            "var": "subject.clubIds"
+                            "var": "subject.sub"
                         }
                     ]
                 }
@@ -252,67 +100,164 @@
         }
     },
     {
-        "id": "hoops-004",
-        "description": "Players can join matches of their tenant",
+        "id": "policy-5",
+        "description": "Users can delete their own documents",
         "actions": [
-            "match:join"
+            "document:delete"
         ],
         "rbac": {
             "anyRole": [
-                "player"
+                "user"
             ]
         },
         "abac": {
             "and": [
                 {
-                    "==": [
+                    "===": [
                         {
-                            "var": "context.app"
+                            "var": "resource.type"
                         },
-                        "hoops"
+                        "document"
                     ]
                 },
                 {
-                    "==": [
+                    "===": [
                         {
-                            "var": "resource.tenantId"
+                            "var": "resource.ownerId"
                         },
                         {
-                            "var": "subject.tenantId"
+                            "var": "subject.sub"
                         }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "policy-6",
+        "description": "Managers can read all documents",
+        "actions": [
+            "document:read"
+        ],
+        "rbac": {
+            "anyRole": [
+                "manager"
+            ]
+        },
+        "abac": {
+            "===": [
+                {
+                    "var": "resource.type"
+                },
+                "document"
+            ]
+        }
+    },
+    {
+        "id": "policy-7",
+        "description": "Managers can update documents in their department",
+        "actions": [
+            "document:update"
+        ],
+        "rbac": {
+            "anyRole": [
+                "manager"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "===": [
+                        {
+                            "var": "resource.type"
+                        },
+                        "document"
                     ]
                 },
                 {
                     "in": [
+                        {
+                            "var": "resource.departmentId"
+                        },
+                        {
+                            "var": "subject.departmentIds"
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "policy-8",
+        "description": "Users can list documents in their department",
+        "actions": [
+            "document:list"
+        ],
+        "rbac": {
+            "anyRole": [
+                "user"
+            ]
+        },
+        "abac": {
+            "in": [
+                {
+                    "var": "resource.departmentId"
+                },
+                {
+                    "var": "subject.departmentIds"
+                }
+            ]
+        }
+    },
+    {
+        "id": "policy-9",
+        "description": "Users can view public resources",
+        "actions": [
+            "resource:view"
+        ],
+        "rbac": {
+            "anyRole": [
+                "user"
+            ]
+        },
+        "abac": {
+            "and": [
+                {
+                    "===": [
+                        {
+                            "var": "resource.type"
+                        },
+                        "resource"
+                    ]
+                },
+                {
+                    "===": [
                         {
                             "var": "resource.visibility"
                         },
-                        [
-                            "PUBLIC",
-                            "CLUB_ONLY"
-                        ]
+                        "public"
                     ]
                 }
             ]
         }
     },
     {
-        "id": "hoops-900",
-        "description": "Hoops admins can do anything in hoops",
+        "id": "policy-10",
+        "description": "Managers can create resources",
         "actions": [
-            "*"
+            "resource:create"
         ],
         "rbac": {
             "anyRole": [
-                "admin"
+                "manager"
             ]
         },
         "abac": {
-            "==": [
+            "===": [
                 {
-                    "var": "context.app"
+                    "var": "resource.type"
                 },
-                "hoops"
+                "resource"
             ]
         }
     }
