@@ -7,9 +7,9 @@ export async function decisionRoutes(app: FastifyInstance): Promise<void> {
     app.post<{ Body: DecisionRequest }>(
         "/decision",
         { preHandler: verifyTokenMiddleware },
-        async (req, reply) => {
-            const decision = evaluatePolicies(req.body);
-            reply.status(200).send(decision);
+        async (req: FastifyRequest<{ Body: DecisionRequest }>, reply: FastifyReply) => {
+            const decision = await evaluatePolicies(req.body);
+            return reply.send(decision);
         }
     );
 }
