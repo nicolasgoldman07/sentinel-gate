@@ -61,60 +61,77 @@ Sentinel Gate is a production-ready authorization microservice that implements A
 
 ---
 
-## 🏛️ Architecture
+## 🏛️ Architecture — concise flow
 
+Below is a simple, step-by-step textual flow that shows how authentication and authorization work together
+with Sentinel Gate, without diagrams.
+
+1. Authentication — Keycloak (Identity Provider)
+
+   - A client (browser/mobile) authenticates with Keycloak and obtains an access token (JWT).
+
+2. Client request — your application (PEP)
+
+   - The client sends an API request to your app including the JWT in the Authorization header.
+   - The app runs the PEP middleware (`@sentinel/sdk`) which:
+     - extracts the token,
+     - optionally validates it locally (signature/expiry) for a fast-fail,
+     - builds a DecisionRequest object describing the subject, action, resource and context,
+     - forwards the DecisionRequest to the Sentinel PDP via POST /decision.
+
+3. Policy decision — Sentinel PDP
+
+   - The PDP is the authoritative evaluator. For each request it:
+     - validates the JWT using Keycloak's JWKS (cached), checking signature, iss and exp,
+     - normalizes token claims into the `subject` object used by policies,
+     - loads and filters policies (by action/context), then evaluates RBAC rules and ABAC rules (json-logic) against the full DecisionRequest,
+     - logs/audits the decision and returns a compact DecisionResponse: { allow, reason, matchedPolicyId }.
+
+4. Enforcement — PEP inside your app
+   - The PEP receives the DecisionResponse and enforces it:
+     - if `allow` → continue processing the request;
+     - if `deny` → return 403 (or follow configured `onUnauthorized` behavior);
+     - optionally cache the decision for a short TTL and attach trace/audit headers to responses.
+
+Where to run each component
+
+- Keycloak: central identity provider (can be shared across apps/environments).
+- Sentinel PDP: centralized policy service (or per-environment/service for isolation).
+- PEP: embedded in each application (Express/Fastify middleware).
+
+Short example (DecisionRequest / DecisionResponse)
+
+DecisionRequest (PEP → PDP):
+
+```json
+{
+  "subject": {
+    "sub": "user-123",
+    "roles": ["user"],
+    "departmentIds": ["dept-1"]
+  },
+  "action": "document:read",
+  "resource": { "type": "document", "id": "doc-123", "ownerId": "user-123" }
+}
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Client Application                      │
-│  (Your Express/Fastify/Next.js app using @sentinel/sdk)         │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         │ HTTP Request with JWT
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Policy Enforcement Point (PEP)               │
-│                        (@sentinel/sdk)                          │
-│  • Extract JWT from Authorization header                        │
-│  • Build authorization request payload                          │
-│  • Call Sentinel PDP for decision                               │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         │ POST /decision
-                         │ { subject, action, resource, context }
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  Policy Decision Point (PDP)                    │
-│                        (Sentinel Service)                       │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ 1. Validate JWT with Keycloak JWKS                      │    │
-│  │    • Verify signature                                   │    │
-│  │    • Check expiration                                   │    │
-│  │    • Extract claims (roles, email, etc.)                │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ 2. Load & Evaluate Policies                             │    │
-│  │    • Filter policies by context (app)                   │    │
-│  │    • Apply JSON Logic rules                             │    │
-│  │    • Match subject, action, resource                    │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ 3. Return Decision                                      │    │
-│  │    { allow: true/false, reason, policyId }              │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         │ Decision Response
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Keycloak (Identity Provider)               │
-│  • Issues JWT tokens                                            │
-│  • Manages users, roles, realms                                 │
-│  • Provides JWKS endpoint for public keys                       │
-└─────────────────────────────────────────────────────────────────┘
+
+DecisionResponse (PDP → PEP):
+
+```json
+{
+  "allow": true,
+  "reason": "Matched policy: policy-2",
+  "matchedPolicyId": "policy-2"
+}
 ```
+
+Quick best-practices
+
+- PDP must validate JWTs via Keycloak JWKS; PEP can optionally validate locally to fail fast.
+- Cache JWKS and use short, careful decision caching in the PEP (e.g., 30s–2m) with invalidation on policy updates.
+- Audit decisions in the PDP (timestamp, subject, action, resource, policyId) and surface trace IDs to the PEP.
+- Default to deny-if-PDP-unreachable unless you have a controlled degraded mode.
+- Use stable action names like `resource:verb` (e.g., `document:read`, `court:book`) and clear policy IDs.
 
 ---
 
